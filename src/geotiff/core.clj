@@ -1,10 +1,12 @@
 (ns geotiff.core
   (:gen-class)
   (:import [java.io File]
-		   [com.sun.media.imageio.plugins.tiff GeoTIFFTagSet TIFFDirectory TIFFField TIFFTagSet]
-		   [org.w3c.dom Node NodeList]
-		   [javax.imageio ImageIO]
-		   [javax.imageio.metadata IIOMetadata IIOMetadataNode]))
+           [com.sun.media.imageio.plugins.tiff GeoTIFFTagSet TIFFDirectory TIFFField TIFFTagSet]
+           [org.w3c.dom Node NodeList]
+           [javax.imageio ImageIO]
+           [javax.imageio.metadata IIOMetadata IIOMetadataNode]))
+
+(set! *warn-on-reflection* true)
 
 (def Angular_Arc_Minute 9103)
 (def Angular_Arc_Second 9104)
@@ -125,11 +127,11 @@
 
 ;(.setInput reader iis)
 
-(defn get-metadata [filepath]
+(defn get-metadata [^String filepath]
   (let [file (File. filepath)
-        iis (ImageIO/createImageInputStream file)
+        ^ImageInputStream iis (ImageIO/createImageInputStream file)
         readers (ImageIO/getImageReadersByFormatName "tif")
-        reader (.next readers)]
+        ^ImageReader reader (.next readers)]
     (.setInput reader iis)
     (.getImageMetadata reader 0)))
 
@@ -153,23 +155,23 @@
                   (map (fn [^Integer index] (.item this index))
                        (range (.getLength this)))))
 
-(defn get-root-node [metadata]
+(defn get-root-node [^IIOMetadata metadata]
   (let [formatName (.getNativeMetadataFormatName metadata)]
     (.getAsTree metadata formatName)))
 
-(defn get-tiff-directory [root]
+(defn get-tiff-directory [^Node root]
   (.getFirstChild root))
 
 (defn- build-map [nodes]
-  (letfn [(idx [x] (read-string (.. x (getAttributes) (getNamedItem NUMBER_ATTR) (getNodeValue))))]
+  (letfn [(idx [^Node x] (read-string (.. x (getAttributes) (getNamedItem NUMBER_ATTR) (getNodeValue))))]
     (loop [pairs {}
            dataz nodes]
       (if (empty? dataz)
         pairs
         (recur (assoc pairs (idx (first dataz)) (first dataz)) (next dataz))))))
 
-(defn get-tiff-field [^Integer tag root]
-  (let [tiff-directory (get-tiff-directory root)
+(defn get-tiff-field [^Integer tag ^Node root]
+  (let [^IIOMetadataNode tiff-directory (get-tiff-directory root)
         children (node-list-seq (.getElementsByTagName tiff-directory TIFF_FIELD_TAG))
         pairs (build-map children)]
     (pairs tag)
@@ -185,38 +187,40 @@
   (rationalize (read-string (get-value-attribute node))))
 
 (defn get-tiff-shorts [^IIOMetadataNode tiffField]
-  (let [elem (.getFirstChild tiffField)
+  (let [^IIOMetadataNode elem (.getFirstChild tiffField)
         shorts (node-list-seq (.getElementsByTagName elem TIFF_SHORT_TAG))]
     (map #(get-int-value-attribute %) shorts)))
 
 (defn get-tiff-short [^IIOMetadataNode tiffField ^Integer index]
-  (let [elem (.getFirstChild tiffField)
-        shorts (.getElementsByTagName elem TIFF_SHORT_TAG)]
+  (let [^IIOMetadataNode elem (.getFirstChild tiffField)
+        ^NodeList shorts (.getElementsByTagName elem TIFF_SHORT_TAG)]
     (get-int-value-attribute (.item shorts index))))
 
 (defn get-tiff-doubles [^IIOMetadataNode tiffField]
-  (let [elem (.getFirstChild tiffField)
-        doubles (node-list-seq (.getElementsByTagName TIFF_DOUBLE_TAG))]
-    (map #(double (read-string (get-value-attribute %))) doubles)))
+  (if (not (nil? tiffField))
+    (let [^IIOMetadataNode elem (.getFirstChild tiffField)
+          doubles (node-list-seq (.getElementsByTagName elem TIFF_DOUBLE_TAG))]
+      (if (not (empty? doubles))
+        (map #(double (read-string (get-value-attribute %))) doubles)))))
 
 (defn get-tiff-double [^IIOMetadataNode tiffField ^Integer index]
-  (let [elem (.getFirstChild tiffField)
-        doubles (.getElementsByTagName elem TIFF_DOUBLE_TAG)]
+  (let [^IIOMetadataNode elem (.getFirstChild tiffField)
+        ^NodeList doubles (.getElementsByTagName elem TIFF_DOUBLE_TAG)]
     (double (read-string (get-value-attribute (.item doubles index))))))
 
 (defn get-tiff-rationals [^IIOMetadataNode tiffField]
-  (let [elem (.getFirstChild tiffField)
+  (let [^IIOMetadataNode elem (.getFirstChild tiffField)
         nums (node-list-seq (.getElementsByTagName elem TIFF_RATIONAL_TAG))]
     (map #(get-rational-value-attribute %) nums)))
 
 (defn get-tiff-rational [^IIOMetadataNode tiffField ^Integer index]
-  (let [elem (.getFirstChild tiffField)
-        nums (.getElementsByTagName elem TIFF_RATIONAL_TAG)]
+  (let [^IIOMetadataNode elem (.getFirstChild tiffField)
+        ^NodeList nums (.getElementsByTagName elem TIFF_RATIONAL_TAG)]
     (get-rational-value-attribute (.item nums index))))
 
 (defn get-tiff-ascii [^IIOMetadataNode tiffField ^Integer start ^Integer length]
-  (let [elem (.getFirstChild tiffField)
-        asciis (.getElementsByTagName elem TIFF_ASCII_TAG)
+  (let [^IIOMetadataNode elem (.getFirstChild tiffField)
+        ^NodeList asciis (.getElementsByTagName elem TIFF_ASCII_TAG)
         node (.item asciis 0)]
     (apply str (butlast (get-value-attribute node)))))
 
@@ -229,7 +233,7 @@
     (get-tiff-doubles node)))
 
 (defn get-model-pixel-scales [root]
-  (let [node (get-tiff-field GeoTIFFTagSet/TAG_MODEL_PIXEL_SCALE)]
+  (let [node (get-tiff-field GeoTIFFTagSet/TAG_MODEL_PIXEL_SCALE root)]
     (get-tiff-doubles node)))
 
 (defn get-geokey-dir-version [root]
@@ -251,8 +255,8 @@
 (defrecord GeoKeyRecord [keyId tagLoc count offset])
 
 (defn get-geokey-record [^Integer keyId root]
-  (let [geokeydir (get-tiff-field GeoTIFFTagSet/TAG_GEO_KEY_DIRECTORY root)
-        tiff-shorts (.getFirstChild geokeydir)
+  (let [^Node geokeydir (get-tiff-field GeoTIFFTagSet/TAG_GEO_KEY_DIRECTORY root)
+        ^IIOMetadataNode tiff-shorts (.getFirstChild geokeydir)
         keys (map get-int-value-attribute (node-list-seq (.getElementsByTagName tiff-shorts TIFF_SHORT_TAG)))]
     (loop [lyst (drop 4 keys)]
       (when-not (empty? lyst)
@@ -267,13 +271,14 @@
   (let [rec (get-geokey-record keyId root)]
     (if (= 0 (:tagLoc rec))
       (:offset rec)
-      (let [field (get-tiff-field (:tagLoc rec) root)
-            node (.getFirstChild field)]
-        (if (= TIFF_ASCIIS_TAG (.getNodeName node))
-          (get-tiff-ascii node (:offset rec) (:count rec))
-          (let [nlist (.getChildNodes node)
-                n (.item nlist (:offset rec))]
-            (get-value-attribute n)))))))
+      (let [^Node field (get-tiff-field (:tagLoc rec) root)]
+        (when (= false (nil? field))
+          (let [^Node node (.getFirstChild field)]
+            (if (= TIFF_ASCIIS_TAG (.getNodeName node))
+              (get-tiff-ascii node (:offset rec) (:count rec))
+              (let [^NodeList nlist (.getChildNodes node)
+                    n (.item nlist (:offset rec))]
+                (get-value-attribute n)))))))))
 
 (defn test-one []
   (let [metadata (get-metadata "/home/jeff/Documents/clojure/geotiff/2012.0212.ConUS_lst_weekly.tif")
