@@ -1,9 +1,10 @@
 (ns geotiff.core
   (:gen-class)
+  (:require [trammel.provide :as provide])
   (:import [java.io File]
            [com.sun.media.imageio.plugins.tiff GeoTIFFTagSet TIFFDirectory TIFFField TIFFTagSet]
            [org.w3c.dom Node NodeList]
-           [javax.imageio ImageIO]
+           [javax.imageio ImageIO ImageReader]
            [javax.imageio.metadata IIOMetadata IIOMetadataNode]))
 
 (set! *warn-on-reflection* true)
@@ -127,13 +128,22 @@
 
 ;(.setInput reader iis)
 
-(defn get-metadata [^String filepath]
+(defn get-metadata
+  "Takes the filepath to a tiff image and extracts the image metadata"
+  [^String filepath]
   (let [file (File. filepath)
         ^ImageInputStream iis (ImageIO/createImageInputStream file)
         readers (ImageIO/getImageReadersByFormatName "tif")
         ^ImageReader reader (.next readers)]
     (.setInput reader iis)
-    (.getImageMetadata reader 0)))
+    (try (.getImageMetadata reader 0)
+         (catch IllegalStateException e
+           (binding [*out* *err*]
+             (println "Could not read metadata of" filepath))))))
+
+(provide/contracts
+ [get-metadata "Takes the filepath of a tiff image as a string and returns an instance of TIFFImageMetadata"
+  [x] [string? => #(= com.sun.media.imageioimpl.plugins.tiff.TIFFImageMetadata (class %))]])
 
 ;(def metadata (.getImageMetadata reader 0))
 ;or not
@@ -155,11 +165,19 @@
                   (map (fn [^Integer index] (.item this index))
                        (range (.getLength this)))))
 
-(defn get-root-node [^IIOMetadata metadata]
+(defn get-root-node
+  "Takes the image metadata and returns the root dom node"
+  [^IIOMetadata metadata]
   (let [formatName (.getNativeMetadataFormatName metadata)]
     (.getAsTree metadata formatName)))
 
-(defn get-tiff-directory [^Node root]
+(provide/contracts
+ [get-root-node "Ensures that an instance of TIFFImageMetadata is given and an IIOMetadataNode is returned"
+  [x] [(= com.sun.media.imageioimpl.plugins.tiff.TIFFImageMetadata (class x)) => #(= javax.imageio.metadata.IIOMetadataNode (class %))]])
+
+(defn get-tiff-directory
+  "Returns the TIFFDirectory of the root node"
+  [^Node root]
   (.getFirstChild root))
 
 (defn- build-map [nodes]
@@ -170,14 +188,18 @@
         pairs
         (recur (assoc pairs (idx (first dataz)) (first dataz)) (next dataz))))))
 
-(defn get-tiff-field [^Integer tag ^Node root]
+(defn get-tiff-field
+  "Get the TIFFField specified by the integer tag from the root node"
+  [^Integer tag ^Node root]
   (let [^IIOMetadataNode tiff-directory (get-tiff-directory root)
         children (node-list-seq (.getElementsByTagName tiff-directory TIFF_FIELD_TAG))
         pairs (build-map children)]
     (pairs tag)
     ))
 
-(defn get-value-attribute [^Node node]
+(defn get-value-attribute
+  "Returns the node's value attributes as string"
+  [^Node node]
   (.. node (getAttributes) (getNamedItem VALUE_ATTR) (getNodeValue)))
 
 (defn get-int-value-attribute [^Node node]
@@ -254,7 +276,9 @@
 
 (defrecord GeoKeyRecord [keyId tagLoc count offset])
 
-(defn get-geokey-record [^Integer keyId root]
+(defn get-geokey-record
+  "Takes the integer key specified by a constant and the root node and returns a GeoKeyRecord"
+  [^Integer keyId root]
   (let [^Node geokeydir (get-tiff-field GeoTIFFTagSet/TAG_GEO_KEY_DIRECTORY root)
         ^IIOMetadataNode tiff-shorts (.getFirstChild geokeydir)
         keys (map get-int-value-attribute (node-list-seq (.getElementsByTagName tiff-shorts TIFF_SHORT_TAG)))]
@@ -267,7 +291,9 @@
             (recur (drop 4 lyst)))))
       )))
 
-(defn get-geokey [^Integer keyId root]
+(defn get-geokey
+  "Returns the value held in a GeoKeyRecord specified by keyId"
+  [^Integer keyId root]
   (let [rec (get-geokey-record keyId root)]
     (if (= 0 (:tagLoc rec))
       (:offset rec)
