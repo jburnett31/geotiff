@@ -140,10 +140,6 @@
            (binding [*out* *err*]
              (println (.getMessage e)))))))
 
-(provide/contracts
- [get-metadata "Takes the filepath of a tiff image as a string and returns an instance of TIFFImageMetadata"
-  [x] [string? =>]])
-
 ;(def metadata (.getImageMetadata reader 0))
 ;or not
 ;(def tree (.getAsTree metadata "javax_imageio_1.0"))
