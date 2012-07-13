@@ -129,7 +129,7 @@
 
 (defn get-metadata
   "Takes the filepath to a tiff image and extracts the image metadata"
-  [^String filepath]
+  [filepath]
   (let [file (File. filepath)
         ^ImageInputStream iis (ImageIO/createImageInputStream file)
         readers (ImageIO/getImageReadersByFormatName "tif")
