@@ -126,9 +126,9 @@
 
 (defn get-metadata [reader]
   (try (.getImageMetadata reader 0)
-       (catch IllegalStateException e)
-       (binding [*out* *err*]
-         (println (.getMessage e)))))
+       (catch IllegalStateException e
+         (binding [*out* *err*]
+         (println (.getMessage e))))))
 
 (defprotocol Node-List-Seq
   "A protocol to turn DOM node lists into clojure sequences"
