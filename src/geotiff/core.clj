@@ -176,7 +176,7 @@
 (defn get-tiff-directory
   "Returns the TIFFDirectory of the root node"
   [^Node root]
-  (maybe "Couldn't get tiff directory." (.getFirstChild root)))
+  (.getFirstChild root))
 
 (defn- build-map [nodes]
   (letfn [(idx [^Node x] (read-string (.. x (getAttributes) (getNamedItem NUMBER_ATTR) (getNodeValue))))]
@@ -190,8 +190,7 @@
   "Get the TIFFField specified by the integer tag from the root node"
   [^Integer tag ^Node root]
   (let [^IIOMetadataNode tiff-directory (get-tiff-directory root)
-        children (node-list-seq (maybe "Error getting tiff field elements."
-                                       (.getElementsByTagName tiff-directory TIFF_FIELD_TAG)))
+        children (node-list-seq (.getElementsByTagName tiff-directory TIFF_FIELD_TAG))
         pairs (build-map children)]
     (pairs tag)
     ))
