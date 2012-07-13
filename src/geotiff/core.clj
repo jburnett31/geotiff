@@ -118,9 +118,9 @@
 
 (defn get-reader [filepath]
   (let [file (File. filepath)
-        ^ImageInputStream iis (ImageIO/createImageInputStream file)
+        iis (ImageIO/createImageInputStream file)
         readers (ImageIO/getImageReadersByFormatName "tif")
-        ^ImageReader reader (.next readers)]
+        reader (.next readers)]
     (.setInput reader iss)
     reader))
 
@@ -149,7 +149,7 @@
 
 (defn get-root-node
   "Takes the image metadata and returns the root dom node"
-  [^IIOMetadata metadata]
+  [metadata]
   (let [formatName (.getNativeMetadataFormatName metadata)]
            (.getAsTree metadata formatName)))
 
@@ -168,8 +168,8 @@
 
 (defn get-tiff-field
   "Get the TIFFField specified by the integer tag from the root node"
-  [^Integer tag ^Node root]
-  (let [^IIOMetadataNode tiff-directory (get-tiff-directory root)
+  [tag root]
+  (let [tiff-directory (get-tiff-directory root)
         children (node-list-seq (.getElementsByTagName tiff-directory TIFF_FIELD_TAG))
         pairs (build-map children)]
     (pairs tag)
@@ -177,50 +177,50 @@
 
 (defn get-value-attribute
   "Returns the node's value attributes as string"
-  [^Node node]
+  [node]
   (.. node (getAttributes) (getNamedItem VALUE_ATTR) (getNodeValue)))
 
-(defn get-int-value-attribute [^Node node]
+(defn get-int-value-attribute [node]
   (int (read-string (get-value-attribute node))))
 
-(defn get-rational-value-attribute [^Node node]
+(defn get-rational-value-attribute [node]
   (rationalize (read-string (get-value-attribute node))))
 
-(defn get-tiff-shorts [^IIOMetadataNode tiffField]
-  (let [^IIOMetadataNode elem (.getFirstChild tiffField)
+(defn get-tiff-shorts [tiffField]
+  (let [elem (.getFirstChild tiffField)
         shorts (node-list-seq (.getElementsByTagName elem TIFF_SHORT_TAG))]
     (map #(get-int-value-attribute %) shorts)))
 
-(defn get-tiff-short [^IIOMetadataNode tiffField ^Integer index]
-  (let [^IIOMetadataNode elem (.getFirstChild tiffField)
-        ^NodeList shorts (.getElementsByTagName elem TIFF_SHORT_TAG)]
+(defn get-tiff-short [tiffField index]
+  (let [elem (.getFirstChild tiffField)
+        shorts (.getElementsByTagName elem TIFF_SHORT_TAG)]
     (get-int-value-attribute (.item shorts index))))
 
-(defn get-tiff-doubles [^IIOMetadataNode tiffField]
+(defn get-tiff-doubles [tiffField]
   (if (not (nil? tiffField))
-    (let [^IIOMetadataNode elem (.getFirstChild tiffField)
+    (let [elem (.getFirstChild tiffField)
           doubles (node-list-seq (.getElementsByTagName elem TIFF_DOUBLE_TAG))]
       (if (not (empty? doubles))
         (map #(double (read-string (get-value-attribute %))) doubles)))))
 
-(defn get-tiff-double [^IIOMetadataNode tiffField ^Integer index]
-  (let [^IIOMetadataNode elem (.getFirstChild tiffField)
-        ^NodeList doubles (.getElementsByTagName elem TIFF_DOUBLE_TAG)]
+(defn get-tiff-double [tiffField ^Integer index]
+  (let [elem (.getFirstChild tiffField)
+        doubles (.getElementsByTagName elem TIFF_DOUBLE_TAG)]
     (double (read-string (get-value-attribute (.item doubles index))))))
 
-(defn get-tiff-rationals [^IIOMetadataNode tiffField]
-  (let [^IIOMetadataNode elem (.getFirstChild tiffField)
+(defn get-tiff-rationals [tiffField]
+  (let [elem (.getFirstChild tiffField)
         nums (node-list-seq (.getElementsByTagName elem TIFF_RATIONAL_TAG))]
     (map #(get-rational-value-attribute %) nums)))
 
-(defn get-tiff-rational [^IIOMetadataNode tiffField ^Integer index]
-  (let [^IIOMetadataNode elem (.getFirstChild tiffField)
-        ^NodeList nums (.getElementsByTagName elem TIFF_RATIONAL_TAG)]
+(defn get-tiff-rational [tiffField index]
+  (let [elem (.getFirstChild tiffField)
+        nums (.getElementsByTagName elem TIFF_RATIONAL_TAG)]
     (get-rational-value-attribute (.item nums index))))
 
-(defn get-tiff-ascii [^IIOMetadataNode tiffField ^Integer start ^Integer length]
-  (let [^IIOMetadataNode elem (.getFirstChild tiffField)
-        ^NodeList asciis (.getElementsByTagName elem TIFF_ASCII_TAG)
+(defn get-tiff-ascii [tiffField start length]
+  (let [elem (.getFirstChild tiffField)
+        asciis (.getElementsByTagName elem TIFF_ASCII_TAG)
         node (.item asciis 0)]
     (apply str (butlast (get-value-attribute node)))))
 
@@ -256,11 +256,11 @@
 
 (defn get-geokey-record
   "Takes the integer key specified by a constant and the root node and returns a GeoKeyRecord"
-  [^Integer keyId root]
+  [keyId root]
   (when root
-    (let [^Node geokeydir (get-tiff-field GeoTIFFTagSet/TAG_GEO_KEY_DIRECTORY root)
-        ^IIOMetadataNode tiff-shorts (.getFirstChild geokeydir)
-        keys (map get-int-value-attribute (node-list-seq (.getElementsByTagName tiff-shorts TIFF_SHORT_TAG)))]
+    (let [geokeydir (get-tiff-field GeoTIFFTagSet/TAG_GEO_KEY_DIRECTORY root)
+          tiff-shorts (.getFirstChild geokeydir)
+          keys (map get-int-value-attribute (node-list-seq (.getElementsByTagName tiff-shorts TIFF_SHORT_TAG)))]
     (loop [lyst (drop 4 keys)]
       (when-not (empty? lyst)
         (let [thisKeyId (first lyst)
@@ -272,16 +272,16 @@
 
 (defn get-geokey
   "Returns the value held in a GeoKeyRecord specified by keyId"
-  [^Integer keyId root]
+  [keyId root]
   (let [rec (get-geokey-record keyId root)]
     (if (= 0 (:tagLoc rec))
       (:offset rec)
-      (let [^Node field (get-tiff-field (:tagLoc rec) root)]
+      (let [field (get-tiff-field (:tagLoc rec) root)]
         (when (= false (nil? field))
-          (let [^Node node (.getFirstChild field)]
+          (let [node (.getFirstChild field)]
             (if (= TIFF_ASCIIS_TAG (.getNodeName node))
               (get-tiff-ascii node (:offset rec) (:count rec))
-              (let [^NodeList nlist (.getChildNodes node)
+              (let [nlist (.getChildNodes node)
                     n (.item nlist (:offset rec))]
                 (get-value-attribute n)))))))))
 
