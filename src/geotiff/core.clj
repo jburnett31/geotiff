@@ -116,35 +116,19 @@
 (def VerticalDatumGeoKey 4098)
 (def VerticalUnitsGeoKey 4099)
 
-
-;(def file (File. "/home/jeff/Documents/clojure/geotiff/2012.0212.ConUS_lst_weekly.tif"))
-
-;(def iis (ImageIO/createImageInputStream file))
-
-;(def readers (ImageIO/getImageReadersByFormatName "tif"))
-
-;(def reader (.next readers))
-
-;(.setInput reader iis)
-
-(defn get-metadata
-  "Takes the filepath to a tiff image and extracts the image metadata"
-  [filepath]
+(defn get-reader [filepath]
   (let [file (File. filepath)
         ^ImageInputStream iis (ImageIO/createImageInputStream file)
         readers (ImageIO/getImageReadersByFormatName "tif")
         ^ImageReader reader (.next readers)]
-    (.setInput reader iis)
-    (try (.getImageMetadata reader 0)
-         (catch IllegalStateException e
-           (binding [*out* *err*]
-             (println (.getMessage e)))))))
+    (.setInput reader iss)
+    reader))
 
-;(def metadata (.getImageMetadata reader 0))
-;or not
-;(def tree (.getAsTree metadata "javax_imageio_1.0"))
-
-;(def directory (TIFFDirectory/createFromMetadata metadata))
+(defn get-metadata [reader]
+  (try (.getImageMetadata reader 0)
+       (catch IllegalStateException e)
+       (binding [*out* *err*]
+         (println (.getMessage e)))))
 
 (defprotocol Node-List-Seq
   "A protocol to turn DOM node lists into clojure sequences"
@@ -301,8 +285,12 @@
                     n (.item nlist (:offset rec))]
                 (get-value-attribute n)))))))))
 
+(defn get-dimensions [reader]
+  [(.getWidth reader 0) (.getHeight reader 0)])
+
 (defn test-one []
-  (let [metadata (get-metadata "/home/jeff/Documents/clojure/geotiff/2012.0212.ConUS_lst_weekly.tif")
+  (let [reader (get-reader "/home/jeff/Documents/clojure/geotiff/2012.0212.ConUS_lst_weekly.tif")
+        metadata (get-metadata reader)
         rootNode (get-root-node metadata)
         directory (get-tiff-directory rootNode)
         tiff-field (get-tiff-field GeoTIFFTagSet/TAG_GEO_KEY_DIRECTORY rootNode)]
