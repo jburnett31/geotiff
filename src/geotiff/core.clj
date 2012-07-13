@@ -136,7 +136,10 @@
         readers (ImageIO/getImageReadersByFormatName "tif")
         ^ImageReader reader (.next readers)]
     (.setInput reader iis)
-    (.getImageMetadata reader 0)))
+    (try (.getImageMetadata reader 0)
+         (catch IllegalStateException e
+           (binding [*out* *err*]
+             (println (.getMessage e)))))))
 
 (provide/contracts
  [get-metadata "Takes the filepath of a tiff image as a string and returns an instance of TIFFImageMetadata"
