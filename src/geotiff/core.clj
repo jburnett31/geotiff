@@ -1,5 +1,4 @@
 (ns geotiff.core
-  (:gen-class)
   (:require [trammel.provide :as provide])
   (:import [java.io File]
            [com.sun.media.imageio.plugins.tiff GeoTIFFTagSet TIFFDirectory TIFFField TIFFTagSet]
