@@ -6,8 +6,6 @@
            [javax.imageio ImageIO ImageReader]
            [javax.imageio.metadata IIOMetadata IIOMetadataNode]))
 
-(set! *warn-on-reflection* true)
-
 (def Angular_Arc_Minute 9103)
 (def Angular_Arc_Second 9104)
 (def Angular_Degree 9102)
