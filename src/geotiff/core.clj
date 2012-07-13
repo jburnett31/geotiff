@@ -121,7 +121,7 @@
         iis (ImageIO/createImageInputStream file)
         readers (ImageIO/getImageReadersByFormatName "tif")
         reader (.next readers)]
-    (.setInput reader iss)
+    (.setInput reader iis)
     reader))
 
 (defn get-metadata [reader]
