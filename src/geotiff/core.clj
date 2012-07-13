@@ -136,14 +136,11 @@
         readers (ImageIO/getImageReadersByFormatName "tif")
         ^ImageReader reader (.next readers)]
     (.setInput reader iis)
-    (try (.getImageMetadata reader 0)
-         (catch IllegalStateException e
-           (binding [*out* *err*]
-             (println "Could not read metadata of" filepath))))))
+    (.getImageMetadata reader 0)))
 
 (provide/contracts
  [get-metadata "Takes the filepath of a tiff image as a string and returns an instance of TIFFImageMetadata"
-  [x] [string? => #(= com.sun.media.imageioimpl.plugins.tiff.TIFFImageMetadata (class %))]])
+  [x] [string? =>]])
 
 ;(def metadata (.getImageMetadata reader 0))
 ;or not
@@ -165,20 +162,19 @@
                   (map (fn [^Integer index] (.item this index))
                        (range (.getLength this)))))
 
+(extend-type nil
+  Node-List-Seq (node-list-seq [this] '()))
+
 (defn get-root-node
   "Takes the image metadata and returns the root dom node"
   [^IIOMetadata metadata]
   (let [formatName (.getNativeMetadataFormatName metadata)]
-    (.getAsTree metadata formatName)))
-
-(provide/contracts
- [get-root-node "Ensures that an instance of TIFFImageMetadata is given and an IIOMetadataNode is returned"
-  [x] [(= com.sun.media.imageioimpl.plugins.tiff.TIFFImageMetadata (class x)) => #(= javax.imageio.metadata.IIOMetadataNode (class %))]])
+           (.getAsTree metadata formatName)))
 
 (defn get-tiff-directory
   "Returns the TIFFDirectory of the root node"
   [^Node root]
-  (.getFirstChild root))
+  (maybe "Couldn't get tiff directory." (.getFirstChild root)))
 
 (defn- build-map [nodes]
   (letfn [(idx [^Node x] (read-string (.. x (getAttributes) (getNamedItem NUMBER_ATTR) (getNodeValue))))]
@@ -192,7 +188,8 @@
   "Get the TIFFField specified by the integer tag from the root node"
   [^Integer tag ^Node root]
   (let [^IIOMetadataNode tiff-directory (get-tiff-directory root)
-        children (node-list-seq (.getElementsByTagName tiff-directory TIFF_FIELD_TAG))
+        children (node-list-seq (maybe "Error getting tiff field elements."
+                                       (.getElementsByTagName tiff-directory TIFF_FIELD_TAG)))
         pairs (build-map children)]
     (pairs tag)
     ))
@@ -279,7 +276,8 @@
 (defn get-geokey-record
   "Takes the integer key specified by a constant and the root node and returns a GeoKeyRecord"
   [^Integer keyId root]
-  (let [^Node geokeydir (get-tiff-field GeoTIFFTagSet/TAG_GEO_KEY_DIRECTORY root)
+  (when root
+    (let [^Node geokeydir (get-tiff-field GeoTIFFTagSet/TAG_GEO_KEY_DIRECTORY root)
         ^IIOMetadataNode tiff-shorts (.getFirstChild geokeydir)
         keys (map get-int-value-attribute (node-list-seq (.getElementsByTagName tiff-shorts TIFF_SHORT_TAG)))]
     (loop [lyst (drop 4 keys)]
@@ -289,7 +287,7 @@
           (if (= keyId thisKeyId)
             (->GeoKeyRecord thisKeyId loc count offset)
             (recur (drop 4 lyst)))))
-      )))
+      ))))
 
 (defn get-geokey
   "Returns the value held in a GeoKeyRecord specified by keyId"
