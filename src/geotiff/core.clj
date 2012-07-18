@@ -187,7 +187,7 @@
 (defn get-tiff-shorts [tiffField]
   (let [elem (.getFirstChild tiffField)
         shorts (node-list-seq (.getElementsByTagName elem TIFF_SHORT_TAG))]
-    (map #(get-int-value-attribute %) shorts)))
+    (map get-int-value-attribute shorts)))
 
 (defn get-tiff-short [tiffField index]
   (let [elem (.getFirstChild tiffField)
@@ -209,7 +209,7 @@
 (defn get-tiff-rationals [tiffField]
   (let [elem (.getFirstChild tiffField)
         nums (node-list-seq (.getElementsByTagName elem TIFF_RATIONAL_TAG))]
-    (map #(get-rational-value-attribute %) nums)))
+    (map get-rational-value-attribute nums)))
 
 (defn get-tiff-rational [tiffField index]
   (let [elem (.getFirstChild tiffField)
@@ -272,10 +272,10 @@
   "Returns the value held in a GeoKeyRecord specified by keyId"
   [keyId root]
   (let [rec (get-geokey-record keyId root)]
-    (if (= 0 (:tagLoc rec))
+    (if (zero? (:tagLoc rec))
       (:offset rec)
       (let [field (get-tiff-field (:tagLoc rec) root)]
-        (when (= false (nil? field))
+        (when (not (nil? field))
           (let [node (.getFirstChild field)]
             (if (= TIFF_ASCIIS_TAG (.getNodeName node))
               (get-tiff-ascii node (:offset rec) (:count rec))
