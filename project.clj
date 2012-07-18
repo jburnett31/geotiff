@@ -1,4 +1,4 @@
-(defproject geotiff "0.1.1"
+(defproject geotiff "0.1.1-alpha2"
   :description "Clojure library for extracting information from GeoTIFF images"
   :url "https://github.com/jburnett31/geotiff"
   :repositories {"mygrid" "http://www.mygrid.org.uk/maven/repository"}
