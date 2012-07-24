@@ -275,7 +275,7 @@
     (if (zero? (:tagLoc rec))
       (:offset rec)
       (let [field (get-tiff-field (:tagLoc rec) root)]
-        (when (not (nil? field))
+        (when-not (nil? field)
           (let [node (.getFirstChild field)]
             (if (= TIFF_ASCIIS_TAG (.getNodeName node))
               (get-tiff-ascii node (:offset rec) (:count rec))
